@@ -28,6 +28,18 @@ Good for: trying it out today.
 This is what gets you the pinned app on your laptop **and** the icon on your phone.
 You need all the files in one folder, hosted at a URL.
 
+**GitHub Pages** — free, permanent URL, easy to update later:
+
+1. Make a new repository on github.com (public is fine — your entries are never in
+   these files).
+2. Upload all the files into it.
+3. **Settings → Pages → Deploy from branch → main → /(root) → Save**.
+4. Wait a minute. Your URL appears at the top of that page.
+
+To update later: drag the new files onto the repo's file list to overwrite, commit,
+wait a minute, then hard-refresh your site with `Ctrl Shift R`. You never need to
+delete or recreate the repository.
+
 **Netlify Drop** — no account needed to start, free forever:
 
 1. Put all the files in one folder on your laptop.
@@ -91,6 +103,7 @@ Three different situations, so pick the row that matches you.
 
 1. Click **Backup** at the bottom of the app (or press `⌘K` / `Ctrl K` and type "backup").
 2. Click **Download .json**. You get `ledger-2026-08-24.json`.
+   (There's also **Export as CSV** in the palette if you want it in a spreadsheet.)
 3. Put that file somewhere both machines can reach — Google Drive, email it to
    yourself, a USB stick, WhatsApp to yourself. Anything.
 
@@ -182,8 +195,62 @@ Two habits worth keeping:
 | `T` | Jump to today |
 | `N` | Write a note |
 | `/` | Search the log |
-| `⌘K` / `Ctrl K` | Command palette |
+| `⌘K` / `Ctrl K` | Command palette — everything lives here |
+| `⌘Z` / `Ctrl Z` | Undo (add `Shift` to redo) |
+| `,` | Settings |
 | `Esc` | Close anything, or clear a tag filter |
+
+### Search operators
+
+Type these in the search box or the command palette, alone or combined:
+
+| Type | Finds |
+|---|---|
+| `gym` | notes containing that word |
+| `#dsa` | days tagged `#dsa` |
+| `#dsa #work` | days with **both** tags |
+| `status:done` | also `partial`, `missed`, `none` |
+| `has:note` | days you actually wrote something on |
+| `before:2026-08` | anything earlier |
+| `after:2026-01-01` | anything later |
+| `status:done #gym after:2026-06` | all of it at once |
+
+### Settings
+
+Press `,` or click **Settings** at the bottom. All in one panel:
+
+- Dark or light
+- Year grid or month calendar
+- Weeks starting Monday or Sunday
+- Weekly target
+- **Rename the three marks** — if you're tracking gym, "Full / Light / Rest" may suit
+  you better than "Done / Partial / Missed"
+- Daily reminder time, and which days it should nudge you
+
+### Notes formatting
+
+`**bold**` and `` `code` `` render in the log. Tags highlight automatically.
+
+### Daily reminders
+
+Turn on in Settings, pick a time and which days. It only nudges you if the day is
+**still blank** — never if you've already logged.
+
+Honest limitation: a website can only fire reminders while it's open or running in
+the background. Installed on a laptop that's on, it's reliable. On a phone that's
+fully closed, it may not fire — a phone alarm is still the sure thing. Doing better
+needs a notification server, which is more setup than it's worth here.
+
+### Milestones
+
+Hit 7, 14, 30, 100, 365 days in a row — or 10, 50, 100, 500 days logged — and it
+says so. Once each, never nagging.
+
+### Tag detail
+
+Click a tag in the Insights section for its own page: how many days, its longest
+streak, what share of your log it covers, when you last touched it. This is how you
+track several habits without the app becoming a spreadsheet.
 
 **The command palette** (`⌘K`) is the fast way around. Type a word to search your
 notes, a date to jump to it (`12 aug`, `2026-03-09`, `7 days ago`, `yesterday`), a

@@ -378,6 +378,38 @@ kbd{background:var(--panel);border:1px solid var(--rule);border-bottom-width:2px
 .kv span:first-child{color:var(--text-3)}
 .kv span:last-child{font-family:var(--ff-mono);font-size:12px;text-align:right;overflow-wrap:anywhere}
 
+/* ── month view ── */
+.mv-head{display:flex;align-items:center;gap:8px;padding:2px 13px 12px}
+.mv-t{flex:1;text-align:center;font-family:var(--ff-mono);font-size:12.5px;font-weight:500;letter-spacing:.06em;text-transform:uppercase}
+.mv-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;padding:0 13px 6px}
+.mv-dow span{text-align:center;font-family:var(--ff-mono);font-size:9px;letter-spacing:.1em;color:var(--text-3)}
+.mv-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;padding:0 13px 4px}
+.mv-c{aspect-ratio:1;border-radius:8px;border:1px solid var(--rule-soft);background:var(--blank);
+  font-family:var(--ff-mono);font-size:12px;font-variant-numeric:tabular-nums;color:var(--text-2);
+  display:grid;place-items:center;position:relative;transition:transform .12s,border-color .15s}
+.mv-c.pad{background:none;border:0;pointer-events:none}
+.mv-c.fut{background:none;border-style:dashed;color:var(--text-3);opacity:.5}
+.mv-c.done{background:var(--done-ink);border-color:var(--done);color:var(--done)}
+.mv-c.partial{background:var(--part-ink);border-color:var(--part);color:var(--part)}
+.mv-c.missed{background:var(--miss-ink);border-color:var(--miss);color:var(--miss)}
+.mv-c.now{box-shadow:0 0 0 2px var(--panel),0 0 0 3.5px var(--text-3)}
+.mv-c.sel{box-shadow:0 0 0 2px var(--panel),0 0 0 3.5px var(--focus)}
+.mv-c.hasnote::after{content:"";position:absolute;bottom:4px;width:3px;height:3px;border-radius:50%;background:currentColor;opacity:.75}
+.mv-c:hover:not(.pad):not(.fut){transform:scale(1.07)}
+
+/* ── settings bits ── */
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.row3 .inp{margin-bottom:0;font-size:11.5px;padding:9px 10px}
+.days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin:10px 0 4px}
+.dayb{padding:8px 0;border-radius:7px;border:1px solid var(--rule);background:var(--panel-2);
+  font-family:var(--ff-mono);font-size:11px;color:var(--text-3);transition:.14s}
+.dayb.on{border-color:var(--done);color:var(--done);background:var(--done-ink)}
+.sheet input[type=time]{font-family:var(--ff-mono)}
+.li-n code,.li-n b{font-family:inherit}
+.li-n code{font-family:var(--ff-mono);font-size:12.5px;background:var(--sunk);padding:1px 5px;border-radius:4px;color:var(--text)}
+.li-n b{color:var(--text);font-weight:700}
+
 /* boot */
 #boot{display:grid;place-items:center;min-height:58vh;gap:11px}
 .spin{width:20px;height:20px;border:2px solid var(--rule);border-top-color:var(--text-2);border-radius:50%;animation:sp .7s linear infinite}
@@ -589,7 +621,7 @@ const shift = (d,n) => new Date(d.getFullYear(), d.getMonth(), d.getDate()+n);
 const mid   = () => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); };
 const days  = (a,b) => Math.round((b - a) / 864e5);
 const monKey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}`;
-function weekStart(d){ const o = (d.getDay()+6)%7; return shift(d,-o); }   // Monday
+function weekStart(d){ const o = (d.getDay() - (data.settings.weekStart === 0 ? 0 : 1) + 7) % 7; return shift(d,-o); }
 
 /* ═══════════════ storage adapter ═══════════════
    Prefers the host's account-synced store (Claude artifacts).
@@ -774,7 +806,7 @@ function weekdayRates(){
   const tot = Array(7).fill(0), good = Array(7).fill(0);
   for (const key of realKeys()){
     const e = data.entries[key]; if (!e.s) continue;
-    const i = (parse(key).getDay()+6)%7;              // 0 = Monday
+    const i = rowOf(parse(key));                      // 0 = first day of your week
     tot[i]++; if (e.s === "done") good[i]++;
   }
   return tot.map((n,i) => n ? Math.round(good[i]/n*100) : null);
@@ -875,7 +907,7 @@ function renderWC(){
 /* year grid */
 let gridCells = null;
 function buildGrid(){
-  const dow   = (today.getDay()+6)%7;
+  const dow   = rowOf(today);
   const end   = shift(today, 6-dow);
   const start = shift(end, -(WEEKS*7 - 1));
   const gf = document.createDocumentFragment(), mf = document.createDocumentFragment();
@@ -937,8 +969,9 @@ function renderInsights(){
     const c = document.createElement("div");
     c.className = "dow-c" + (i === worst && rates.filter(x => x !== null).length > 2 ? " worst" : "");
     const cls = v === null ? "none" : v >= 70 ? "" : v >= 40 ? "mid" : "weak";
-    c.innerHTML = `<div class="dow-b ${cls}" style="height:${v === null ? 2 : Math.max(4, v*0.62)}%"></div><div class="dow-l">${DOW_M[i][0]}</div>`;
-    c.title = v === null ? `${DOW_M[i]} — nothing logged yet` : `${DOW_M[i]} — ${v}% of logged days marked done`;
+    const dl = dowLabels()[i];
+    c.innerHTML = `<div class="dow-b ${cls}" style="height:${v === null ? 2 : Math.max(4, v*0.62)}%"></div><div class="dow-l">${dl[0]}</div>`;
+    c.title = v === null ? `${dl} — nothing logged yet` : `${dl} — ${v}% marked ${L("done")}`;
     df.appendChild(c);
   });
   el.dowChart.replaceChildren(df);
@@ -984,6 +1017,10 @@ function decorate(text, q, withTags=true){
   if (withTags){
     const rx = tagRe();
     let m; while ((m = rx.exec(src)) !== null) ranges.push([m.index, m.index + m[0].length, "h"]);
+    const bold = /\*\*([^*\n]+)\*\*/g;
+    while ((m = bold.exec(src)) !== null) ranges.push([m.index, m.index+m[0].length, "b", m.index+2, m.index+m[0].length-2]);
+    const code = /`([^`\n]+)`/g;
+    while ((m = code.exec(src)) !== null) ranges.push([m.index, m.index+m[0].length, "c", m.index+1, m.index+m[0].length-1]);
   }
   const ql = (q || "").toLowerCase();
   if (ql){
@@ -996,19 +1033,23 @@ function decorate(text, q, withTags=true){
   const keep = []; let last = -1;
   for (const r of ranges) if (r[0] >= last){ keep.push(r); last = r[1]; }
   let out = "", at = 0;
-  for (const [a,b,t] of keep){
+  for (const [a,b,t,ia,ib] of keep){
     out += escapeHtml(src.slice(at,a));
-    const inner = escapeHtml(src.slice(a,b));
-    out += t === "h" ? `<span class="h">${inner}</span>` : `<mark>${inner}</mark>`;
+    const inner = escapeHtml(src.slice(ia === undefined ? a : ia, ib === undefined ? b : ib));
+    out += t === "h" ? `<span class="h">${inner}</span>`
+         : t === "b" ? `<b>${inner}</b>`
+         : t === "c" ? `<code>${inner}</code>`
+         : `<mark>${inner}</mark>`;
     at = b;
   }
   return out + escapeHtml(src.slice(at));
 }
 function matchingKeys(){
-  const q = query.trim().toLowerCase();
+  const q = parseQuery(query);
   let keys = realKeys().sort().reverse();
   if (tagFilter){ const s = new Set(buildTagIndex().get(tagFilter) || []); keys = keys.filter(x => s.has(x)); }
-  if (q) keys = keys.filter(x => (data.entries[x].n || "").toLowerCase().includes(q));
+  if (q.text || q.status || q.tags.length || q.before || q.after || q.hasNote)
+    keys = keys.filter(x => entryMatches(x, q));
   return keys;
 }
 function renderFilters(){
@@ -1020,7 +1061,7 @@ function renderFilters(){
   el.filters.replaceChildren(b);
 }
 function renderLog(){
-  const q = query.trim().toLowerCase();
+  const q = parseQuery(query).text;
   const keys = matchingKeys();
   renderFilters();
   if (!keys.length){
@@ -1047,7 +1088,9 @@ function renderLog(){
 }
 
 function renderAll(animate=false){
-  renderStrip(animate); renderRail(); renderEntry(); paintGrid(); renderInsights(); renderLog();
+  renderStrip(animate); renderRail(); renderEntry();
+  if (monthView()) buildMonth(); else paintGrid();
+  renderInsights(); renderLog();
 }
 
 /* ═══════════════ actions ═══════════════ */
@@ -1061,19 +1104,22 @@ function removeEntry(key){
 function prune(key){ const e = data.entries[key]; if (e && !e.s && !(e.n||"").trim() && !e.d) removeEntry(key); }
 
 function setStatus(kind){
-  const key = k(sel), e = ensure(key);
+  const key = k(sel), before = snap(key), e = ensure(key);
   e.s = (e.s === kind) ? null : kind;
   e.u = Date.now();
   prune(key);
+  record(key, before);
   scheduleSave(180);
   renderAll(false);
+  checkMilestones();
 }
 function selectDate(d){
   if (d > today) return;
   if (dirty) commit();
   sel = d; page = PAGE;
   el.notes.value = (entry(k(sel)) || {}).n || "";
-  renderStrip(false); renderRail(); renderEntry(); paintGrid();
+  renderStrip(false); renderRail(); renderEntry();
+  if (monthView()) buildMonth(); else paintGrid();
 }
 function focusCard(){ document.querySelector(".card").scrollIntoView({ behavior:"smooth", block:"center" }); }
 function setTag(t){
@@ -1094,12 +1140,13 @@ function applyTheme(){
 function toMarkdown(){
   const keys = realKeys().sort().reverse(), s = stats();
   const box = { done:"[x]", partial:"[~]", missed:"[ ]" };
+  const nm = { done:L("done"), partial:L("partial"), missed:L("missed") };
   let out = `# Ledger\n\nExported ${k(today)} · run ${s.run} · best ${s.best} · ${s.logged} days logged`;
   if (s.rate !== null) out += ` · ${s.rate}% done`;
   out += "\n\n";
   for (const key of keys){
     const e = data.entries[key], d = parse(key);
-    out += `## ${box[e.s] || "[ ]"} ${key} · ${DOW[d.getDay()]}\n${(e.n||"").trim() || "_No note._"}\n\n`;
+    out += `## ${box[e.s] || "[ ]"} ${key} · ${DOW[d.getDay()]}${e.s ? ` · ${nm[e.s]}` : ""}\n${(e.n||"").trim() || "_No note._"}\n\n`;
   }
   return out.trimEnd() + "\n";
 }
@@ -1310,9 +1357,14 @@ function buildPal(q){
   }
 
   const cmds = [
-    ["Mark today done",    "status", "check", () => { selectDate(new Date(today)); setStatus("done"); }],
-    ["Mark today partial", "status", "minus", () => { selectDate(new Date(today)); setStatus("partial"); }],
-    ["Mark today missed",  "status", "cross", () => { selectDate(new Date(today)); setStatus("missed"); }],
+    [`Mark today ${L("done")}`,    "status", "check", () => { selectDate(new Date(today)); setStatus("done"); }],
+    [`Mark today ${L("partial")}`, "status", "minus", () => { selectDate(new Date(today)); setStatus("partial"); }],
+    [`Mark today ${L("missed")}`,  "status", "cross", () => { selectDate(new Date(today)); setStatus("missed"); }],
+    ["Settings",            "setting","gear",  openSettings],
+    ["Undo",                "edit",   "up",    doUndo],
+    ["Redo",                "edit",   "down",  doRedo],
+    ["Export as CSV",       "data",   "down",  () => { const c = toCSV(); if (!download(`ledger-${k(today)}.csv`, c, "text/csv")) copyText(c); toast("CSV exported"); }],
+    ["Switch calendar view","setting","cal",   () => { data.settings.view = monthView() ? "year" : "month"; scheduleSave(200); refreshCalendar(); }],
     ["Go to today",        "jump",   "cal",   () => { selectDate(new Date(today)); focusCard(); }],
     ["Write a note",       "jump",   "note",  () => { focusCard(); el.notes.focus(); }],
     ["Back up your ledger","data",   "down",  openExport],
@@ -1400,8 +1452,11 @@ el.stamps.addEventListener("click", ev => {
 });
 el.notes.addEventListener("input", () => {
   const key = k(sel), e = ensure(key);
+  const fresh = !(lastTouch.key === key && Date.now() - lastTouch.at < 2500);
+  const before = fresh ? snap(key) : (undoStack[undoStack.length-1] || {}).before;
   e.n = el.notes.value; e.u = Date.now();
   if (!el.notes.value.trim() && !e.s) prune(key);
+  record(key, before, !fresh);
   el.clearBtn.hidden = !isReal(entry(key));
   renderWC(); scheduleSave(650);
   clearTimeout(logTimer);
@@ -1412,15 +1467,21 @@ el.notes.addEventListener("blur", () => { if (dirty) commit(); });
 el.prevBtn.onclick  = () => selectDate(shift(sel,-1));
 el.nextBtn.onclick  = () => selectDate(shift(sel, 1));
 el.todayBtn.onclick = () => selectDate(new Date(today));
-el.clearBtn.onclick = () => { removeEntry(k(sel)); el.notes.value = ""; scheduleSave(120); renderAll(false); };
+el.clearBtn.onclick = () => { const b = snap(k(sel)); removeEntry(k(sel)); record(k(sel), b); el.notes.value = ""; scheduleSave(120); renderAll(false); };
 el.gridJump.onclick = () => { selectDate(new Date(today)); el.gridbox.scrollTo({ left: el.gridbox.scrollWidth, behavior:"smooth" }); };
 el.printBtn.onclick = () => window.print();
 
 el.strip.addEventListener("click", ev => { const b = ev.target.closest(".sd"); if (b) selectDate(parse(b.dataset.key)); });
-el.grid.addEventListener("click",  ev => { const c = ev.target.closest(".g[data-key]"); if (c){ selectDate(parse(c.dataset.key)); focusCard(); } });
+el.gridbox.addEventListener("click", ev => {
+  const mv = ev.target.closest("[data-mv]");
+  if (mv){ monthCursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth() + (+mv.dataset.mv), 1); buildMonth(); return; }
+  const c = ev.target.closest("[data-key]");
+  if (c){ selectDate(parse(c.dataset.key)); focusCard(); }
+});
 el.grid.addEventListener("pointerover", ev => { const c = ev.target.closest(".g[data-key]"); if (c && !c.title) c.title = titleFor(c.dataset.key); });
 el.log.addEventListener("click",   ev => { const b = ev.target.closest(".li"); if (b){ selectDate(parse(b.dataset.key)); focusCard(); } });
-for (const host of [el.tagrow, el.tagcloud, el.filters])
+el.tagcloud.addEventListener("click", ev => { const b = ev.target.closest("[data-tag]"); if (b) openTagDetail(b.dataset.tag); });
+for (const host of [el.tagrow, el.filters])
   host.addEventListener("click", ev => { const b = ev.target.closest("[data-tag]"); if (b) setTag(b.dataset.tag); });
 el.moreBtn.onclick = () => { page += PAGE; renderLog(); };
 el.q.addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(() => { query = el.q.value; page = PAGE; renderLog(); }, 130); });
@@ -1429,7 +1490,7 @@ el.themeBtn.onclick  = () => { data.settings.theme = data.settings.theme === "da
 el.exportBtn.onclick = openExport;
 el.exportBtn2.onclick = openExport;
 el.importBtn.onclick = openImport;
-el.targetBtn.onclick = openTarget;
+el.targetBtn.onclick = openSettings;
 el.weekStat.onclick  = openTarget;
 el.resetBtn.onclick  = openReset;
 el.palBtn.onclick    = openPal;
@@ -1448,6 +1509,8 @@ el.palList.addEventListener("pointermove", ev => {
 document.addEventListener("keydown", ev => {
   const mod = ev.metaKey || ev.ctrlKey;
   if (mod && (ev.key === "k" || ev.key === "K")){ ev.preventDefault(); palOpen ? closePal() : openPal(); return; }
+  if (mod && (ev.key === "z" || ev.key === "Z")){ ev.preventDefault(); ev.shiftKey ? doRedo() : doUndo(); return; }
+  if (mod && (ev.key === "y" || ev.key === "Y")){ ev.preventDefault(); doRedo(); return; }
 
   if (palOpen){
     if (ev.key === "Escape"){ closePal(); return; }
@@ -1470,6 +1533,7 @@ document.addEventListener("keydown", ev => {
   else if (ev.key === "t" || ev.key === "T"){ selectDate(new Date(today)); }
   else if (ev.key === "n" || ev.key === "N"){ focusCard(); el.notes.focus(); ev.preventDefault(); }
   else if (ev.key === "/"){ el.q.focus(); ev.preventDefault(); }
+  else if (ev.key === ","){ openSettings(); ev.preventDefault(); }
   else if (ev.key === "Escape" && tagFilter){ setTag(tagFilter); }
 });
 function pulse(i){ const b = el.stamps.children[i]; b.classList.remove("ink"); void b.offsetWidth; b.classList.add("ink"); }
@@ -1984,6 +2048,385 @@ function openSyncStatus(){
   document.getElementById("sOff").onclick = async () => { await Sync.disconnect(); closeSheet(); toast("Sync disconnected"); };
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   FEATURE LAYER
+   Everything here is reachable from the command palette or Settings.
+   The main screen deliberately gains nothing it didn't already have.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── custom status labels ─────────────────────────────────────── */
+const DEFAULT_LABELS = { done:"Done", partial:"Partial", missed:"Missed" };
+function L(kind){
+  const l = (data.settings.labels || {})[kind];
+  return (l && String(l).trim()) || DEFAULT_LABELS[kind] || kind;
+}
+function applyLabels(){
+  for (const b of el.stamps.children){
+    const cap = b.querySelector(".cap");
+    if (cap) cap.textContent = L(b.dataset.k);
+  }
+  const lg = el.gridbox.querySelector(".legend");
+  if (lg){
+    const spans = lg.querySelectorAll(".lab");
+    if (spans[0]) spans[0].textContent = L("done");
+    if (spans[1]) spans[1].textContent = L("partial");
+    if (spans[2]) spans[2].textContent = L("missed");
+  }
+}
+
+/* ─── week start (Monday or Sunday) ────────────────────────────── */
+function WS(){ return data.settings.weekStart === 0 ? 0 : 1; }
+function rowOf(d){ return (d.getDay() - WS() + 7) % 7; }
+function dowLabels(){
+  const base = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  return Array.from({length:7}, (_,i) => base[(i + WS()) % 7]);
+}
+
+/* ─── undo / redo ──────────────────────────────────────────────── */
+const undoStack = [], redoStack = [];
+let lastTouch = { key:null, at:0 };
+
+function snap(key){ const e = data.entries[key]; return e ? { ...e } : null; }
+function record(key, before, coalesce = false){
+  const after = snap(key);
+  if (JSON.stringify(before) === JSON.stringify(after)) return;
+  const top = undoStack[undoStack.length - 1];
+  if (coalesce && top && top.key === key && Date.now() - lastTouch.at < 2500){
+    top.after = after;                      // keep typing folded into one step
+  } else {
+    undoStack.push({ key, before, after });
+    if (undoStack.length > 80) undoStack.shift();
+  }
+  lastTouch = { key, at: Date.now() };
+  redoStack.length = 0;
+}
+function restore(key, state){
+  if (state) data.entries[key] = { ...state };
+  else delete data.entries[key];
+  scheduleSave(120);
+  sel = parse(key);
+  el.notes.value = (data.entries[key] || {}).n || "";
+  invalidate(); renderAll(false);
+}
+function doUndo(){
+  const step = undoStack.pop();
+  if (!step){ toast("Nothing to undo"); return; }
+  redoStack.push(step);
+  restore(step.key, step.before);
+  toast(`Undone — ${fmtShort(step.key)}`);
+}
+function doRedo(){
+  const step = redoStack.pop();
+  if (!step){ toast("Nothing to redo"); return; }
+  undoStack.push(step);
+  restore(step.key, step.after);
+  toast(`Redone — ${fmtShort(step.key)}`);
+}
+function fmtShort(key){ const d = parse(key); return `${pad(d.getDate())} ${MON[d.getMonth()]}`; }
+
+/* ─── milestones ───────────────────────────────────────────────── */
+const RUN_MARKS = [7,14,30,50,100,200,365,500,1000];
+const LOG_MARKS = [10,50,100,250,500,1000];
+function checkMilestones(){
+  const s = stats();
+  const hit = data.settings.hit || (data.settings.hit = {});
+  let msg = null;
+  for (const n of RUN_MARKS)
+    if (s.run >= n && !hit["r"+n]){ hit["r"+n] = 1; msg = `${n} days in a row. That's the streak now.`; }
+  for (const n of LOG_MARKS)
+    if (s.logged >= n && !hit["l"+n]){ hit["l"+n] = 1; msg = msg || `${n} days logged. The record is getting real.`; }
+  if (msg){ scheduleSave(400); setTimeout(() => toast(msg), 500); }
+}
+
+/* ─── search operators ─────────────────────────────────────────── */
+/* status:done  #tag  before:2026-08  after:2026-01-01  has:note  plain words */
+function parseQuery(raw){
+  const q = { text:"", status:null, tags:[], before:null, after:null, hasNote:false };
+  const words = [];
+  for (const tok of String(raw || "").trim().split(/\s+/)){
+    if (!tok) continue;
+    let m;
+    if ((m = /^status:(done|partial|missed|none)$/i.exec(tok)))      q.status = m[1].toLowerCase();
+    else if ((m = /^(before|after):(\d{4}(?:-\d{2}){0,2})$/i.exec(tok))){
+      const parts = m[2].split("-");
+      const y = +parts[0], mo = parts[1] ? +parts[1]-1 : 0, dd = parts[2] ? +parts[2] : 1;
+      const d = new Date(y, mo, dd);
+      if (!isNaN(d)) q[m[1].toLowerCase()] = d;
+    }
+    else if (/^has:note$/i.test(tok)) q.hasNote = true;
+    else if (tok.startsWith("#") && tok.length > 1) q.tags.push(tok.slice(1).toLowerCase());
+    else words.push(tok);
+  }
+  q.text = words.join(" ").toLowerCase();
+  return q;
+}
+function entryMatches(key, q){
+  const e = data.entries[key];
+  if (!e) return false;
+  if (q.status){
+    if (q.status === "none"){ if (e.s) return false; }
+    else if (e.s !== q.status) return false;
+  }
+  if (q.hasNote && !(e.n||"").trim()) return false;
+  if (q.before || q.after){
+    const d = parse(key);
+    if (q.before && d >= q.before) return false;
+    if (q.after  && d <= q.after)  return false;
+  }
+  if (q.tags.length){
+    const has = new Set(tagsOf(e.n));
+    for (const t of q.tags) if (!has.has(t)) return false;
+  }
+  if (q.text && !(e.n||"").toLowerCase().includes(q.text)) return false;
+  return true;
+}
+
+/* ─── month view ───────────────────────────────────────────────── */
+let monthCursor = null;
+function monthView(){ return data.settings.view === "month"; }
+function buildMonth(){
+  if (!monthCursor) monthCursor = new Date(today.getFullYear(), today.getMonth(), 1);
+  const first = monthCursor;
+  const daysIn = new Date(first.getFullYear(), first.getMonth()+1, 0).getDate();
+  const lead = rowOf(first);
+  const selKey = k(sel), todayKey = k(today);
+  const labels = dowLabels();
+
+  let html = `<div class="mv-head">
+      <button class="nav" data-mv="-1" aria-label="Previous month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div class="mv-t">${MON[first.getMonth()]} ${first.getFullYear()}</div>
+      <button class="nav" data-mv="1" aria-label="Next month"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+    <div class="mv-dow">${labels.map(l => `<span>${l[0]}</span>`).join("")}</div>
+    <div class="mv-grid">`;
+  for (let i = 0; i < lead; i++) html += `<span class="mv-c pad"></span>`;
+  for (let dn = 1; dn <= daysIn; dn++){
+    const d = new Date(first.getFullYear(), first.getMonth(), dn), key = k(d);
+    const e = entry(key);
+    const cls = ["mv-c"];
+    if (d > today) cls.push("fut");
+    if (e && e.s) cls.push(e.s);
+    if (key === todayKey) cls.push("now");
+    if (key === selKey) cls.push("sel");
+    if (e && (e.n||"").trim()) cls.push("hasnote");
+    html += `<button class="${cls.join(" ")}" ${d > today ? "disabled" : `data-key="${key}"`} title="${escapeHtml(titleFor(key))}">${dn}</button>`;
+  }
+  html += `</div>`;
+  el.gridbox.innerHTML = html;
+}
+
+/* ─── tag detail ───────────────────────────────────────────────── */
+function openTagDetail(tag){
+  const keys = (buildTagIndex().get(tag) || []).slice().sort();
+  if (!keys.length){ toast("No days with that tag"); return; }
+  let done = 0, partial = 0, missed = 0, w = 0;
+  for (const key of keys){
+    const e = data.entries[key];
+    if (e.s === "done") done++; else if (e.s === "partial") partial++; else if (e.s === "missed") missed++;
+    w += words(e.n);
+  }
+  // longest consecutive stretch carrying this tag
+  let best = 0, cur = 0, prev = null;
+  for (const key of keys){
+    cur = (prev && k(shift(parse(prev),1)) === key) ? cur+1 : 1;
+    if (cur > best) best = cur;
+    prev = key;
+  }
+  const firstD = parse(keys[0]), lastD = parse(keys[keys.length-1]);
+  const gap = days(lastD, today);
+  const span = days(firstD, today) + 1;
+
+  openSheet(`
+    <h3>#${escapeHtml(tag)}</h3>
+    <p>Every day you tagged with this.</p>
+    <div class="facts" style="margin-top:0">
+      <div class="fact"><div class="lab">Days</div><b>${keys.length}</b></div>
+      <div class="fact"><div class="lab">Best streak</div><b>${best}</b></div>
+      <div class="fact"><div class="lab">Of all days</div><b>${Math.round(keys.length/span*100)}%</b></div>
+      <div class="fact"><div class="lab">Words</div><b>${w.toLocaleString()}</b></div>
+    </div>
+    <div class="kv" style="margin-top:14px"><span>${escapeHtml(L("done"))} / ${escapeHtml(L("partial"))} / ${escapeHtml(L("missed"))}</span><span>${done} / ${partial} / ${missed}</span></div>
+    <div class="kv"><span>First tagged</span><span>${pad(firstD.getDate())} ${MON[firstD.getMonth()]} ${firstD.getFullYear()}</span></div>
+    <div class="kv"><span>Last tagged</span><span>${gap === 0 ? "today" : gap === 1 ? "yesterday" : `${gap} days ago`}</span></div>
+    <div class="sheet-acts">
+      <button class="btn primary" id="tdFilter">Show these in the log</button>
+      <button class="btn" data-close>Close</button>
+    </div>`);
+  document.getElementById("tdFilter").onclick = () => { closeSheet(); setTag(tag); };
+}
+
+/* ─── reminders ────────────────────────────────────────────────── */
+const Remind = {
+  timer: null,
+  get cfg(){ return data.settings.remind || (data.settings.remind = { on:false, time:"21:00", days:[1,1,1,1,1,1,1] }); },
+  supported(){ return typeof Notification !== "undefined"; },
+  perm(){ return this.supported() ? Notification.permission : "unsupported"; },
+  async ask(){
+    if (!this.supported()) return "unsupported";
+    if (Notification.permission === "granted") return "granted";
+    try { return await Notification.requestPermission(); } catch(e){ return "denied"; }
+  },
+  async fire(){
+    const body = "Today's still blank. What did you get done?";
+    try {
+      const reg = ("serviceWorker" in navigator) ? await navigator.serviceWorker.getRegistration() : null;
+      if (reg && reg.showNotification){
+        await reg.showNotification("Ledger", { body, icon:"icon-192.png", badge:"icon-192.png", tag:"ledger-daily", data:{ url: location.href } });
+        return;
+      }
+      new Notification("Ledger", { body, icon:"icon-192.png", tag:"ledger-daily" });
+    } catch(e){}
+  },
+  due(){
+    const c = this.cfg;
+    if (!c.on || this.perm() !== "granted") return false;
+    if (!c.days[(new Date()).getDay()]) return false;
+    const [hh,mm] = String(c.time || "21:00").split(":").map(Number);
+    const now = new Date();
+    const at = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh||0, mm||0, 0);
+    if (now < at) return false;
+    if (now - at > 3*3600e3) return false;                 // don't nag hours later
+    if (data.settings.lastRemind === k(today)) return false;
+    const e = entry(k(today));
+    return !(e && (e.s || (e.n||"").trim()));              // only if today is still empty
+  },
+  tick(){
+    if (!this.due()) return;
+    data.settings.lastRemind = k(today);
+    scheduleSave(300);
+    this.fire();
+  },
+  start(){
+    clearInterval(this.timer);
+    this.timer = setInterval(() => this.tick(), 30000);
+    setTimeout(() => this.tick(), 3000);
+  },
+};
+
+/* ─── settings ─────────────────────────────────────────────────── */
+function openSettings(){
+  const st = data.settings, r = Remind.cfg;
+  const dl = dowLabels();
+  const permNote =
+    !Remind.supported()         ? `<p class="note bad">This browser can't show notifications.</p>`
+    : Remind.perm() === "denied"? `<p class="note bad">Notifications are blocked for this site. Turn them back on in your browser's site settings, then come back.</p>`
+    : Remind.perm() !== "granted" ? `<p class="note">You'll be asked for permission when you switch this on.</p>` : "";
+
+  openSheet(`
+    <h3>Settings</h3>
+    <p>Everything adjustable, in one place.</p>
+
+    <div class="wiz-n">Appearance</div>
+    <div class="row"><button class="btn ${st.theme==="dark"?"primary":""}" data-theme-set="dark">Dark</button>
+      <button class="btn ${st.theme==="light"?"primary":""}" data-theme-set="light">Light</button></div>
+
+    <div class="wiz-n" style="margin-top:16px">Calendar</div>
+    <div class="row"><button class="btn ${st.view!=="month"?"primary":""}" data-view="year">Year grid</button>
+      <button class="btn ${st.view==="month"?"primary":""}" data-view="month">Month</button></div>
+    <div class="row" style="margin-top:8px"><button class="btn ${WS()===1?"primary":""}" data-ws="1">Weeks start Monday</button>
+      <button class="btn ${WS()===0?"primary":""}" data-ws="0">Sunday</button></div>
+
+    <div class="wiz-n" style="margin-top:16px">Weekly target</div>
+    <div class="field"><input type="range" id="setTarget" min="1" max="7" value="${st.target}"><output id="setTargetOut">${st.target} / week</output></div>
+
+    <div class="wiz-n" style="margin-top:10px">What you call the three marks</div>
+    <div class="row3">
+      <input class="inp" id="labDone" value="${escapeHtml(L("done"))}" maxlength="14" placeholder="Done">
+      <input class="inp" id="labPart" value="${escapeHtml(L("partial"))}" maxlength="14" placeholder="Partial">
+      <input class="inp" id="labMiss" value="${escapeHtml(L("missed"))}" maxlength="14" placeholder="Missed">
+    </div>
+
+    <div class="wiz-n" style="margin-top:10px">Daily reminder</div>
+    ${permNote}
+    <div class="row" style="align-items:center">
+      <button class="btn ${r.on?"primary":""}" id="remToggle">${r.on ? "On" : "Off"}</button>
+      <input class="inp" id="remTime" type="time" value="${escapeHtml(r.time)}" style="margin:0;flex:1">
+    </div>
+    <div class="days" id="remDays">${dl.map((l,i) => {
+      const dayIdx = (i + WS()) % 7;
+      return `<button class="dayb ${r.days[dayIdx]?"on":""}" data-day="${dayIdx}">${l[0]}</button>`;
+    }).join("")}</div>
+    <p class="note">Only nudges you if the day is still blank. Reminders fire while Ledger is open or running in the background — for a guaranteed nudge, a phone alarm is still more reliable.</p>
+
+    <div class="sheet-acts">
+      <button class="btn primary" id="setSave">Save</button>
+      <button class="btn" data-close>Close</button>
+    </div>`);
+
+  const g = id => document.getElementById(id);
+  el.sheet.querySelectorAll("[data-theme-set]").forEach(b => b.onclick = () => {
+    data.settings.theme = b.dataset.themeSet; applyTheme(); scheduleSave(200); openSettings();
+  });
+  el.sheet.querySelectorAll("[data-view]").forEach(b => b.onclick = () => {
+    data.settings.view = b.dataset.view; scheduleSave(200); refreshCalendar(); openSettings();
+  });
+  el.sheet.querySelectorAll("[data-ws]").forEach(b => b.onclick = () => {
+    data.settings.weekStart = +b.dataset.ws; scheduleSave(200);
+    invalidate(); refreshCalendar(); renderAll(false); openSettings();
+  });
+  g("setTarget").oninput = e => { g("setTargetOut").textContent = `${e.target.value} / week`; };
+  g("remToggle").onclick = async () => {
+    if (!r.on){
+      const p = await Remind.ask();
+      if (p !== "granted"){ toast(p === "denied" ? "Notifications are blocked in your browser" : "Notifications unavailable"); return; }
+      r.on = true;
+    } else r.on = false;
+    scheduleSave(200); Remind.start(); openSettings();
+  };
+  el.sheet.querySelectorAll("[data-day]").forEach(b => b.onclick = () => {
+    const i = +b.dataset.day; r.days[i] = r.days[i] ? 0 : 1;
+    b.classList.toggle("on", !!r.days[i]); scheduleSave(300);
+  });
+  g("setSave").onclick = () => {
+    data.settings.target = +g("setTarget").value;
+    data.settings.labels = {
+      done: g("labDone").value.trim() || DEFAULT_LABELS.done,
+      partial: g("labPart").value.trim() || DEFAULT_LABELS.partial,
+      missed: g("labMiss").value.trim() || DEFAULT_LABELS.missed,
+    };
+    Remind.cfg.time = g("remTime").value || "21:00";
+    scheduleSave(0); applyLabels(); renderRail(); Remind.start(); closeSheet(); toast("Settings saved");
+  };
+}
+
+function refreshCalendar(){
+  if (monthView()){ monthCursor = new Date(sel.getFullYear(), sel.getMonth(), 1); buildMonth(); }
+  else { el.gridbox.innerHTML = `<div class="gridinner"><div class="months" id="months"></div><div class="grid" id="grid"></div></div>
+    <div class="legend"><span class="lab">Done</span><i style="background:var(--done)"></i><span class="lab">Partial</span><i style="background:var(--part)"></i><span class="lab">Missed</span><i style="background:var(--miss)"></i><span class="lab">Unlogged</span><i style="background:var(--blank)"></i><span class="lab" id="gridFilterNote" style="margin-left:auto" hidden></span></div>`;
+    el.months = document.getElementById("months"); el.grid = document.getElementById("grid");
+    el.gridFilterNote = document.getElementById("gridFilterNote");
+    buildGrid(); applyLabels();
+  }
+}
+
+/* ─── CSV ──────────────────────────────────────────────────────── */
+function toCSV(){
+  const rows = [["date","weekday","status","words","tags","note"]];
+  for (const key of realKeys().sort().reverse()){
+    const e = data.entries[key], d = parse(key);
+    rows.push([key, DOW[d.getDay()], e.s || "", words(e.n), tagsOf(e.n).join(" "), (e.n||"")]);
+  }
+  return rows.map(r => r.map(c => {
+    const s = String(c);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  }).join(",")).join("\n") + "\n";
+}
+
+/* ─── first run ────────────────────────────────────────────────── */
+function openWelcome(){
+  openSheet(`
+    <h3>Welcome to Ledger</h3>
+    <p>A private daily log. Three things to know, then you're set.</p>
+    <ol>
+      <li><b>Mark the day.</b> ${escapeHtml(L("done"))}, ${escapeHtml(L("partial"))}, or ${escapeHtml(L("missed"))} — then write what you actually did.</li>
+      <li><b>Use #tags.</b> Type <b>#gym</b> or <b>#study</b> in a note and it becomes something you can filter and track on its own.</li>
+      <li><b>Press ⌘K / Ctrl K</b> for everything else — search, jump to any date, settings, backups.</li>
+    </ol>
+    <p class="note">${escapeHtml(L("partial"))} still counts toward your streak. Showing up badly beats not showing up.</p>
+    <div class="sheet-acts"><button class="btn primary" data-close>Start logging</button></div>`);
+  data.settings.seen = 1; scheduleSave(600);
+}
+
 /* ═══════════════ boot ═══════════════ */
 // Dock/home-screen shortcuts arrive as ?mark=done or ?note=1. Act on them,
 // then scrub the query string so a refresh doesn't re-fire the action.
@@ -2003,6 +2446,12 @@ function runLaunchAction(){
 
 (async () => {
   await load();
+  const S = data.settings;
+  if (!S.labels)              S.labels = { ...DEFAULT_LABELS };
+  if (S.weekStart === undefined) S.weekStart = 1;
+  if (!S.view)                S.view = "year";
+  if (!S.remind)              S.remind = { on:false, time:"21:00", days:[1,1,1,1,1,1,1] };
+  if (!S.hit)                 S.hit = {};
   const cutoff = Date.now() - 180*864e5;
   for (const [key,e] of Object.entries(data.entries))
     if (e && e.d && (e.u||0) < cutoff) delete data.entries[key];   // long-settled deletions
@@ -2011,8 +2460,12 @@ function runLaunchAction(){
   el.where.className = "where " + Store.mode;
   el.whereTxt.textContent = Store.label;
   el.boot.hidden = true; el.app.hidden = false;
-  buildGrid(); renderAll(true);
+  if (monthView()) refreshCalendar(); else buildGrid();
+  applyLabels();
+  renderAll(true);
   runLaunchAction();
+  Remind.start();
+  if (!data.settings.seen && !realKeys().length) setTimeout(openWelcome, 700);
 
   // sync is optional and always additive — the app is already fully usable above
   await Sync.loadCfg();
